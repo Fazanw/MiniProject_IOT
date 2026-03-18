@@ -121,19 +121,25 @@ pip install -r requirements.txt
 
 ## Environment Configuration
 
+> **Note:** `.env` and `wokwi/secrets.h` are gitignored and never committed. You must create them locally before running anything.
+
+### Python scripts — `.env`
+
 Copy the template and fill in your credentials:
 
 ```bash
 cp .env.example .env
 ```
 
+Then edit `.env`:
+
 ```env
-CLOUDAMQP_URL=amqps://USERNAME:PASSWORD@dog.lmq.cloudamqp.com/VHOST
+CLOUDAMQP_URL=amqps://USERNAME:PASSWORD@your-broker.lmq.cloudamqp.com/VHOST
 
 INFLUX3_HOST=https://us-east-1-1.aws.cloud2.influxdata.com
-INFLUX3_ORG=Dev
-INFLUX3_DATABASE=room-monitoring
-INFLUX3_TOKEN=YOUR_INFLUX_TOKEN
+INFLUX3_ORG=your_org
+INFLUX3_DATABASE=your_database
+INFLUX3_TOKEN=your_influx_token
 ```
 
 | Variable         | Description                     |
@@ -143,6 +149,32 @@ INFLUX3_TOKEN=YOUR_INFLUX_TOKEN
 | INFLUX3_ORG      | Influx organization             |
 | INFLUX3_DATABASE | Database name                   |
 | INFLUX3_TOKEN    | API token                       |
+
+### Arduino / Wokwi — `wokwi/secrets.h`
+
+Copy the template and fill in your MQTT credentials:
+
+```bash
+cp wokwi/secrets.h.example wokwi/secrets.h
+```
+
+Then edit `wokwi/secrets.h`:
+
+```cpp
+#define MQTT_SERVER "your-broker.lmq.cloudamqp.com"
+#define MQTT_PORT   8883
+#define MQTT_USER   "your_user:your_vhost"
+#define MQTT_PASS   "your_mqtt_password"
+#define MQTT_TOPIC  "energy/telemetry"
+```
+
+| Variable    | Description                        |
+| ----------- | ---------------------------------- |
+| MQTT_SERVER | CloudAMQP broker hostname          |
+| MQTT_PORT   | TLS port (8883)                    |
+| MQTT_USER   | CloudAMQP username:vhost           |
+| MQTT_PASS   | CloudAMQP password                 |
+| MQTT_TOPIC  | MQTT topic to publish telemetry to |
 
 ---
 

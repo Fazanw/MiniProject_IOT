@@ -1,6 +1,3 @@
-
----
-
 # Cloud IoT Workshop
 
 A hands-on workshop demonstrating a **cloud-based IoT telemetry pipeline** using managed services and Python-based device simulation.
@@ -9,9 +6,24 @@ The workshop simulates a fleet of IoT devices sending telemetry to a cloud messa
 
 ---
 
-# Architecture Overview
+## Table of Contents
 
-The system architecture:
+- [Architecture Overview](#architecture-overview)
+- [Project Structure](#project-structure)
+- [Environment Setup](#environment-setup)
+- [Environment Configuration](#environment-configuration)
+- [Script Overview](#script-overview)
+- [Producer Scripts](#producer-scripts)
+- [Consumer Scripts](#consumer-scripts)
+- [Running the End-to-End Demo](#running-the-end-to-end-demo)
+- [Querying Data in InfluxDB](#querying-data-in-influxdb)
+- [Grafana Dashboards](#grafana-dashboards)
+- [Troubleshooting](#troubleshooting)
+- [Workshop Agenda](#workshop-agenda)
+
+---
+
+## Architecture Overview
 
 ```
 Python Device Simulators
@@ -29,13 +41,11 @@ InfluxDB 3 (Time-Series Database)
 Grafana Dashboards
 ```
 
-Pipeline flow:
+**Pipeline flow:**
 
 ```
 Producer(s) → CloudAMQP Queue → Consumer → InfluxDB → Grafana
 ```
-
-Each component has a clearly defined role:
 
 | Component        | Role                                         |
 | ---------------- | -------------------------------------------- |
@@ -47,7 +57,7 @@ Each component has a clearly defined role:
 
 ---
 
-# Project Structure
+## Project Structure
 
 ```
 cloud-iot-workshop/
@@ -72,46 +82,33 @@ cloud-iot-workshop/
 
 ---
 
-# Environment Setup
+## Environment Setup
 
-## 1 Install Python
+### 1. Install Python
 
-Recommended:
-
-```
-Python 3.10+
-```
-
-Check version:
+Requires **Python 3.10+**
 
 ```bash
 python --version
 ```
 
----
-
-## 2 Create virtual environment (recommended)
+### 2. Create virtual environment
 
 ```bash
 python -m venv venv
+
+# macOS/Linux
 source venv/bin/activate
-```
 
-Windows:
-
-```bash
+# Windows
 venv\Scripts\activate
 ```
 
----
-
-## 3 Install dependencies
+### 3. Install dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
-
-Dependencies:
 
 | Package          | Purpose                          |
 | ---------------- | -------------------------------- |
@@ -122,17 +119,15 @@ Dependencies:
 
 ---
 
-# Environment Configuration
+## Environment Configuration
 
-Create a `.env` file from the template.
+Copy the template and fill in your credentials:
 
 ```bash
 cp .env.example .env
 ```
 
-Edit `.env`:
-
-```
+```env
 CLOUDAMQP_URL=amqps://USERNAME:PASSWORD@dog.lmq.cloudamqp.com/VHOST
 
 INFLUX3_HOST=https://us-east-1-1.aws.cloud2.influxdata.com
@@ -140,8 +135,6 @@ INFLUX3_ORG=Dev
 INFLUX3_DATABASE=room-monitoring
 INFLUX3_TOKEN=YOUR_INFLUX_TOKEN
 ```
-
-Required values:
 
 | Variable         | Description                     |
 | ---------------- | ------------------------------- |
@@ -153,24 +146,16 @@ Required values:
 
 ---
 
-# Script Overview
+## Script Overview
 
-## scripts/
+### `scripts/test_broker_connection.py`
 
-### test_broker_connection.py
+Tests connectivity to CloudAMQP:
 
-Purpose:
-
-Test connectivity to CloudAMQP.
-
-Steps performed:
-
-1. connect to AMQP broker
-2. declare queue
-3. publish test message
-4. close connection
-
-Run:
+1. Connect to AMQP broker
+2. Declare queue
+3. Publish test message
+4. Close connection
 
 ```bash
 python scripts/test_broker_connection.py
@@ -183,21 +168,9 @@ Expected output:
 [OK] Test message published
 ```
 
----
+### `scripts/test_influx_write.py`
 
-### test_influx_write.py
-
-Purpose:
-
-Validate InfluxDB connectivity.
-
-Functions:
-
-* write sample points
-* execute SQL query
-* print query results
-
-Run:
+Validates InfluxDB connectivity by writing sample points and running a query.
 
 ```bash
 python scripts/test_influx_write.py
@@ -213,23 +186,19 @@ STEP 3: Query results
 
 ---
 
-# Producer Scripts
+## Producer Scripts
 
-Producer scripts simulate IoT devices sending telemetry.
+Producer scripts simulate IoT devices publishing telemetry to the `iot_telemetry` queue.
 
-Queue used:
+### `single_device_producer.py`
 
+Simulates a single IoT device.
+
+```bash
+python producers/single_device_producer.py
 ```
-iot_telemetry
-```
 
----
-
-## single_device_producer.py
-
-Simulates one IoT device.
-
-Telemetry example:
+Example payload:
 
 ```json
 {
@@ -243,34 +212,12 @@ Telemetry example:
 }
 ```
 
-Run:
+### `fleet_device_simulator.py`
 
-```bash
-python producers/single_device_producer.py
-```
-
----
-
-## fleet_device_simulator.py
-
-Simulates multiple devices concurrently.
-
-Features:
-
-* multiple device threads
-* randomized telemetry
-* random publish intervals
-
-Run:
+Simulates **20 devices** concurrently with randomized telemetry and publish intervals.
 
 ```bash
 python producers/fleet_device_simulator.py
-```
-
-Default simulation:
-
-```
-20 devices
 ```
 
 Example output:
@@ -282,76 +229,35 @@ Example output:
 
 ---
 
-# Consumer Scripts
+## Consumer Scripts
 
-Consumers read queue messages and process them.
+### `queue_message_logger.py`
 
----
-
-## queue_message_logger.py
-
-Simple debugging consumer.
-
-Purpose:
-
-Inspect raw messages in the queue.
-
-Run:
+Debugging consumer — prints raw messages from the queue.
 
 ```bash
 python consumers/queue_message_logger.py
 ```
 
-Output example:
-
 ```
 [MSG] {"device_id":"device-001",...}
 ```
 
----
+### `minimal_amqp_to_influx.py`
 
-## minimal_amqp_to_influx.py
-
-Minimal ingestion pipeline.
-
-Workflow:
-
-```
-AMQP Queue → InfluxDB
-```
-
-Stores limited fields:
-
-* device_id
-* region
-* temperature
-* humidity
-
-Run:
+Minimal ingestion pipeline. Stores `device_id`, `region`, `temperature`, and `humidity`.
 
 ```bash
 python consumers/minimal_amqp_to_influx.py
 ```
 
----
+### `amqp_to_influx_service.py`
 
-## amqp_to_influx_service.py
-
-Full ingestion service used for the final workshop.
-
-Workflow:
+Full ingestion service for the final workshop demo.
 
 ```
-Queue message
-    ↓
-JSON decode
-    ↓
-InfluxDB Point
-    ↓
-Write to database
+Queue message → JSON decode → InfluxDB Point → Write to database
 ```
-
-Stored fields:
 
 | Tag         | Field         |
 | ----------- | ------------- |
@@ -361,13 +267,9 @@ Stored fields:
 |             | battery       |
 |             | signal_rssi   |
 
-Run:
-
 ```bash
 python consumers/amqp_to_influx_service.py
 ```
-
-Output:
 
 ```
 [WRITE] device-004 -> InfluxDB
@@ -375,67 +277,36 @@ Output:
 
 ---
 
-# Running the End-to-End Demo
+## Running the End-to-End Demo
 
 Open two terminals.
 
----
-
-## Terminal 1
-
-Start ingestion service.
+**Terminal 1** — start the ingestion service:
 
 ```bash
 python consumers/amqp_to_influx_service.py
 ```
 
----
-
-## Terminal 2
-
-Start fleet simulator.
+**Terminal 2** — start the fleet simulator:
 
 ```bash
 python producers/fleet_device_simulator.py
 ```
 
----
+Expected behavior:
 
-## Expected behavior
-
-Producer output:
-
-```
-[PUB] device-003 -> {...}
-```
-
-Consumer output:
-
-```
-[WRITE] device-003 -> InfluxDB
-```
-
-CloudAMQP:
-
-```
-Queue activity visible
-```
-
-InfluxDB:
-
-```
-Rows increasing
-```
+| Component  | Output                    |
+| ---------- | ------------------------- |
+| Producer   | `[PUB] device-003 -> ...` |
+| Consumer   | `[WRITE] device-003 -> InfluxDB` |
+| CloudAMQP  | Queue activity visible    |
+| InfluxDB   | Row count increasing      |
 
 ---
 
-# Querying Data in InfluxDB
+## Querying Data in InfluxDB
 
-Example SQL queries.
-
----
-
-## Latest telemetry
+**Latest telemetry:**
 
 ```sql
 SELECT *
@@ -444,26 +315,18 @@ ORDER BY time DESC
 LIMIT 20;
 ```
 
----
-
-## Average temperature by region
+**Average temperature by region:**
 
 ```sql
-SELECT
-region,
-AVG(temperature)
+SELECT region, AVG(temperature)
 FROM iot_telemetry
 GROUP BY region;
 ```
 
----
-
-## Battery health
+**Battery health:**
 
 ```sql
-SELECT
-device_id,
-battery
+SELECT device_id, battery
 FROM iot_telemetry
 ORDER BY battery ASC
 LIMIT 20;
@@ -471,109 +334,45 @@ LIMIT 20;
 
 ---
 
-# Grafana Dashboards
+## Grafana Dashboards
 
-Recommended panels.
-
----
-
-## Temperature over time
-
-```
-time series chart
-```
-
-Query:
-
-```sql
-SELECT time, temperature
-FROM iot_telemetry
-```
+| Panel                        | Type             | Query                                              |
+| ---------------------------- | ---------------- | -------------------------------------------------- |
+| Temperature over time        | Time series      | `SELECT time, temperature FROM iot_telemetry`      |
+| Battery by device            | Bar gauge        | `SELECT device_id, battery FROM iot_telemetry`     |
+| Avg temperature by region    | Bar chart        | `SELECT region, AVG(temperature) FROM iot_telemetry GROUP BY region` |
 
 ---
 
-## Battery by device
+## Troubleshooting
 
-```
-bar gauge
-```
+**Broker connection fails**
 
-Query:
-
-```sql
-SELECT device_id, battery
-FROM iot_telemetry
-```
-
----
-
-## Average temperature by region
-
-```
-bar chart
-```
-
-Query:
-
-```sql
-SELECT region, AVG(temperature)
-FROM iot_telemetry
-GROUP BY region
-```
-
----
-
-# Troubleshooting
-
-## Broker connection fails
-
-Check:
-
-* CLOUDAMQP_URL
-* network connectivity
-* TLS port
-
-Test with:
+- Check `CLOUDAMQP_URL` in `.env`
+- Verify network connectivity and TLS port (8883)
 
 ```bash
 python scripts/test_broker_connection.py
 ```
 
----
+**InfluxDB 401 Unauthorized**
 
-## Influx authentication error
-
-Error example:
-
-```
-401 unauthorized
-```
-
-Solution:
-
-* regenerate API token
-* confirm org name
-* verify database name
-
-Test with:
+- Regenerate API token
+- Confirm `INFLUX3_ORG` and `INFLUX3_DATABASE` values
 
 ```bash
 python scripts/test_influx_write.py
 ```
 
----
+**Queue receives no messages**
 
-## Queue receives no messages
-
-Check:
-
-* producer running
-* queue name matches
-* broker dashboard
+- Confirm producer is running
+- Verify queue name matches between producer and consumer
+- Check CloudAMQP dashboard
 
 ---
 
-# Workshop Agenda (Example)
+## Workshop Agenda
 
 Total duration: **2 hours**
 
@@ -590,20 +389,13 @@ Total duration: **2 hours**
 
 ---
 
-# Summary
+## Summary
 
 This workshop demonstrates a scalable IoT telemetry pipeline using:
 
-* Python device simulation
-* managed AMQP messaging
-* time-series storage
-* real-time dashboards
+- Python device simulation
+- Managed AMQP messaging
+- Time-series storage
+- Real-time dashboards
 
-Key concept demonstrated:
-
-```
-Decoupled cloud ingestion using message queues
-```
-
----#   M i n i P r o j e c t _ I O T  
- 
+> Key concept: **Decoupled cloud ingestion using message queues**

@@ -605,4 +605,5 @@ Key concept demonstrated:
 Decoupled cloud ingestion using message queues
 ```
 
----
+---#   M i n i P r o j e c t _ I O T  
+ 

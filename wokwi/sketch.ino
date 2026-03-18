@@ -2,16 +2,11 @@
 #include <WiFiClientSecure.h>
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
+#include "secrets.h"
 
 // --- Configuration ---
 const char* WIFI_SSID = "Wokwi-GUEST";
 const char* WIFI_PASS = "";
-
-const char* MQTT_SERVER = "kingfisher.lmq.cloudamqp.com";
-const int MQTT_PORT = 8883;
-const char* MQTT_USER = "cjtrneuy:cjtrneuy";
-const char* MQTT_PASS = "a2r3Jn1b8s-iMuwx741ZEg77KCCHr81p";
-const char* MQTT_TOPIC = "energy/telemetry";
 
 WiFiClientSecure wifiClient;
 PubSubClient client(wifiClient);

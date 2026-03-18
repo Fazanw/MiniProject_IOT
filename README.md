@@ -77,7 +77,7 @@ cloud-iot-workshop/
 └── consumers/
     ├── queue_message_logger.py
     ├── minimal_amqp_to_influx.py
-    └── amqp_to_influx_service.py
+    └── amqp_to_influx3.py
 ```
 
 ---
@@ -188,11 +188,11 @@ STEP 3: Query results
 
 ## Producer Scripts
 
-Producer scripts simulate IoT devices publishing telemetry to the `iot_telemetry` queue.
+Producer scripts simulate energy meters publishing telemetry to the `energy_telemetry` queue.
 
 ### `single_device_producer.py`
 
-Simulates a single IoT device.
+Simulates a single energy meter (`meter-001`) with static electrical values.
 
 ```bash
 python producers/single_device_producer.py
@@ -202,19 +202,26 @@ Example payload:
 
 ```json
 {
-  "device_id": "device-001",
-  "region": "north",
-  "temperature": 29.4,
-  "humidity": 81.2,
-  "soil_moisture": 53.1,
-  "battery": 87,
-  "signal_rssi": -68
+  "device_id": "meter-001",
+  "voltage": 220.5,
+  "current": 2.1,
+  "power": 463.05,
+  "energy": 15.6,
+  "power_factor": 0.94,
+  "frequency": 50.0,
+  "device_type": "industrial_monitor"
 }
+```
+
+Example output:
+
+```
+[PUB] meter-001 -> 220.5V, 2.1A, 463.05W
 ```
 
 ### `fleet_device_simulator.py`
 
-Simulates **20 devices** concurrently with randomized telemetry and publish intervals.
+Simulates **5 meters** concurrently with randomized electrical telemetry every 5 seconds.
 
 ```bash
 python producers/fleet_device_simulator.py
@@ -223,8 +230,8 @@ python producers/fleet_device_simulator.py
 Example output:
 
 ```
-[PUB] device-005 -> {...}
-[PUB] device-012 -> {...}
+[PUB] meter-001 -> 224.3V, 3.12A, 699.82W
+[PUB] meter-002 -> 218.7V, 7.45A, 1629.32W
 ```
 
 ---
@@ -233,46 +240,92 @@ Example output:
 
 ### `queue_message_logger.py`
 
-Debugging consumer — prints raw messages from the queue.
+Debugging consumer — prints voltage and current from each incoming message.
 
 ```bash
 python consumers/queue_message_logger.py
 ```
 
+Example output:
+
 ```
-[MSG] {"device_id":"device-001",...}
+[MSG] Received Telemetry from meter-001
+      Voltage: 224.3V | Current: 3.12A
+------------------------------
 ```
 
 ### `minimal_amqp_to_influx.py`
 
-Minimal ingestion pipeline. Stores `device_id`, `region`, `temperature`, and `humidity`.
+Minimal ingestion pipeline. Reads `voltage` and `current`, calculates `power` (`P = V × I`), and writes to InfluxDB.
 
 ```bash
 python consumers/minimal_amqp_to_influx.py
 ```
 
-### `amqp_to_influx_service.py`
+Stored fields:
 
-Full ingestion service for the final workshop demo.
+| Tag       | Field   |
+| --------- | ------- |
+| device_id | voltage |
+|           | current |
+|           | power   |
+
+Example output:
 
 ```
-Queue message → JSON decode → InfluxDB Point → Write to database
+[WRITE] meter-001 -> 224.3V, 3.12A, 699.82W
 ```
 
-| Tag         | Field         |
-| ----------- | ------------- |
-| device_id   | temperature   |
-| region      | humidity      |
-| device_type | soil_moisture |
-|             | battery       |
-|             | signal_rssi   |
+### `amqp_to_influx3.py`
+
+Full ingestion service. Validates and transforms all electrical fields, then writes to InfluxDB.
+
+- Validates and transforms incoming telemetry
+- Stores measurements in the time-series database
+- Acts as the data pipeline entry point
+
+Workflow:
+
+```
+Queue message → JSON decode → validate fields → InfluxDB Point → Write to database
+```
+
+**Electrical Telemetry Data:**
+
+| Field        | Description                        |
+| ------------ | ---------------------------------- |
+| device_id    | Unique meter identifier (tag)      |
+| device_type  | Meter category (tag)               |
+| voltage      | Electrical voltage (V)             |
+| current      | Electrical current (A)             |
+| power        | Active power consumption (W)       |
+| energy       | Accumulated energy usage (kWh)     |
+| power_factor | Efficiency of electrical load      |
+| frequency    | Grid frequency (Hz)                |
+
+**Power calculation** — if `power` is not present in the message, it is derived as:
+
+```
+P = V × I
+```
+
+| Tag         | Field        |
+| ----------- | ------------ |
+| device_id   | voltage      |
+| device_type | current      |
+|             | power        |
+|             | energy       |
+|             | power_factor |
+|             | frequency    |
 
 ```bash
-python consumers/amqp_to_influx_service.py
+python consumers/amqp_to_influx3.py
 ```
 
+Example output:
+
 ```
-[WRITE] device-004 -> InfluxDB
+[INGEST] meter-001: 224.3V, 3.12A, 699.82W, 45.6kWh, PF=0.95, 50.0Hz
 ```
 
 ---
@@ -284,7 +337,7 @@ Open two terminals.
 **Terminal 1** — start the ingestion service:
 
 ```bash
-python consumers/amqp_to_influx_service.py
+python consumers/amqp_to_influx3.py
 ```
 
 **Terminal 2** — start the fleet simulator:
@@ -295,12 +348,12 @@ python producers/fleet_device_simulator.py
 
 Expected behavior:
 
-| Component  | Output                    |
-| ---------- | ------------------------- |
-| Producer   | `[PUB] device-003 -> ...` |
-| Consumer   | `[WRITE] device-003 -> InfluxDB` |
-| CloudAMQP  | Queue activity visible    |
-| InfluxDB   | Row count increasing      |
+| Component | Output                                                    |
+| --------- | --------------------------------------------------------- |
+| Producer  | `[PUB] meter-003 -> 221.4V, 4.5A, 996.3W`                |
+| Consumer  | `[INGEST] meter-003: 221.4V, 4.5A, 996.3W, ...`          |
+| CloudAMQP | Queue activity visible                                    |
+| InfluxDB  | Row count increasing in `energy_telemetry` measurement    |
 
 ---
 
@@ -310,25 +363,32 @@ Expected behavior:
 
 ```sql
 SELECT *
-FROM iot_telemetry
+FROM energy_telemetry
 ORDER BY time DESC
 LIMIT 20;
 ```
 
-**Average temperature by region:**
+**Average power consumption:**
 
 ```sql
-SELECT region, AVG(temperature)
-FROM iot_telemetry
-GROUP BY region;
+SELECT AVG(power)
+FROM energy_telemetry;
 ```
 
-**Battery health:**
+**Energy consumption by device:**
 
 ```sql
-SELECT device_id, battery
-FROM iot_telemetry
-ORDER BY battery ASC
+SELECT device_id, SUM(energy)
+FROM energy_telemetry
+GROUP BY device_id;
+```
+
+**Voltage stability monitoring:**
+
+```sql
+SELECT time, device_id, voltage
+FROM energy_telemetry
+ORDER BY time DESC
 LIMIT 20;
 ```
 
@@ -336,11 +396,14 @@ LIMIT 20;
 
 ## Grafana Dashboards
 
-| Panel                        | Type             | Query                                              |
-| ---------------------------- | ---------------- | -------------------------------------------------- |
-| Temperature over time        | Time series      | `SELECT time, temperature FROM iot_telemetry`      |
-| Battery by device            | Bar gauge        | `SELECT device_id, battery FROM iot_telemetry`     |
-| Avg temperature by region    | Bar chart        | `SELECT region, AVG(temperature) FROM iot_telemetry GROUP BY region` |
+| Panel                     | Type        | Query                                                        |
+| ------------------------- | ----------- | ------------------------------------------------------------ |
+| Power consumption over time | Time series | `SELECT time, power FROM energy_telemetry`                 |
+| Voltage monitoring        | Time series | `SELECT time, voltage FROM energy_telemetry`                 |
+| Current load monitoring   | Time series | `SELECT time, current FROM energy_telemetry`                 |
+| Energy usage per device   | Bar gauge   | `SELECT device_id, SUM(energy) FROM energy_telemetry GROUP BY device_id` |
+| Power factor efficiency   | Stat panel  | `SELECT device_id, power_factor FROM energy_telemetry`       |
+| Frequency stability       | Time series | `SELECT time, frequency FROM energy_telemetry`               |
 
 ---
 
